@@ -34,6 +34,7 @@ class SimpleActionServer(Node):
 
         result = Simpleaction.Result()
         result.simple_result = feedback_msg.simple_feedback
+        print(f'result.simple_result: {result.simple_result}')
         return result
 
 
