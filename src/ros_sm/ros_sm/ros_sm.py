@@ -29,31 +29,18 @@ class InitState(smach.State):
 # Define state DoingAction
 class DoingActionState(smach_ros.SimpleActionState):
     def __init__(self, node):
-        smach_ros.SimpleActionState.__init__(self, node=node, action_name='simple_action', action_spec=Simpleaction, goal_cb=self.goal_callback, input_keys=['action_goal'], result_key='action_result', result_cb=self.result_callback, outcomes=['action_complete', 'failed'])
+        smach_ros.SimpleActionState.__init__(self, node=node, action_name='simple_action', action_spec=Simpleaction, goal_cb=self.goal_callback, input_keys=['action_goal'], result_cb=self.result_callback, outcomes=['action_complete', 'failed'])
 
     @staticmethod
     def goal_callback(userdata, goal):
-        # Specify the action goal from userdata, ensuring that the type matches the goal type specified in the action. 
-        # Did not use goal_key as userdata.goal_key would have been float though action goal expecting int32. 
         goal.simple_request = int(userdata.action_goal)
-        print(f'action goal is: {goal.simple_request}')
     
-    # TODO: debug why result_callback does not seem to be called. Printout does not appear in ros_sm node terminal. 
-
     @staticmethod
-    def result_callback(result):
-        print(f'result is: {result.action_result}')
-    
-    # TODO: define method to return event to trigger state transition
-
-    # def execute(self, userdata):
-    #     self.node.get_logger().info('Executing state DoingActionState')
-    #     print(f'userdata is {userdata.action_goal}')
-    #     event = self.node.wait_for_event()
-    #     if event['event'] == 'action_complete':
-    #         return 'action_complete'
-    #     elif event['event'] == 'failed':
-    #         return 'failed'
+    def result_callback(userdata, result, result_key):
+        if result.simple_result:
+            return 'action_complete'
+        else:
+            return 'failed'
 
 # Define state RunningService
 class RunningServiceState(smach.State):
@@ -168,7 +155,7 @@ def main(args=None):
     try:
         # Execute SMACH plan
         outcome = sm.execute()
-    except Exception as e:
+    except smach.InvalidTransitionError as e:
         print(e)
 
     # Wait for ctrl-c to stop the application

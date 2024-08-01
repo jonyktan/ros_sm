@@ -6,7 +6,7 @@
 1. Build image
 
     ```
-    docker build --file docker/Dockerfile --tag ros_sm:jazzy .
+    docker build --file docker/Dockerfile --tag ros_sm .
     ```
 
 1. Run container (in WSL). Default container name is `ros_sm`
