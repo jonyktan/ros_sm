@@ -25,6 +25,7 @@ test/
 # Ignore generated docs
 *.dox
 *.wikidoc
+.vscode
 
 # eclipse stuff
 .project
