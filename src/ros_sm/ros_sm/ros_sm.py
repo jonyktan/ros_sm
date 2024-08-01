@@ -11,6 +11,7 @@ from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL, TIMEOUT
 
 from std_msgs.msg import String
 from custom_action_interfaces.action import Simpleaction
+from example_interfaces.srv import AddTwoInts
 
 
 # Define state Init
@@ -104,16 +105,16 @@ class DoingActionState(ActionState):
 class RunningServiceState(ServiceState):
     def __init__(self) -> None:
         super().__init__(
-            srv_type=SimpleService,
+            srv_type=AddTwoInts,
             srv_name="/simple_service",
             create_request_handler=self.create_request_handler,
             outcomes=["service_ended", "failed"],
             response_handler=self.response_handler
         )
 
-    def create_request_handler(self, blackboard: Blackboard) -> SimpleService.Request:
+    def create_request_handler(self, blackboard: Blackboard) -> AddTwoInts.Request:
 
-        req = SimpleService.Request()
+        req = AddTwoInts.Request()
         req.a = blackboard["a"]
         req.b = blackboard["b"]
         return req
@@ -121,7 +122,7 @@ class RunningServiceState(ServiceState):
     def response_handler(
         self,
         blackboard: Blackboard,
-        response: SimpleService.Response
+        response: AddTwoInts.Response
     ) -> str:
 
         blackboard["sum"] = response.sum
