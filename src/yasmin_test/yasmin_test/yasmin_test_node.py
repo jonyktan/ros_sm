@@ -66,12 +66,12 @@ class BarState(State):
 class SimpleActionState(ActionState):
     def __init__(self, node) -> None:
         super().__init__(
-            Simpleaction,  # action type
-            "/simple_action",  # action name
-            self.create_goal_handler,  # cb to create the goal
-            None,  # outcomes. Includes (SUCCEED, ABORT, CANCEL)
-            self.response_handler,  # cb to process the response
-            self.print_feedback  # cb to process the feedback
+            action_type=Simpleaction,  # action type
+            action_name="/simple_action",  # action name
+            create_goal_handler=self.create_goal_handler,  # cb to create the goal
+            outcomes=None,  # outcomes. Includes (SUCCEED, ABORT, CANCEL)
+            result_handler=self.response_handler,  # cb to process the response
+            feedback_handler=self.print_feedback  # cb to process the feedback
         )
         self.node = node
 
