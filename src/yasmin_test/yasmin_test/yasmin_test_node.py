@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-
+# Imports for basic yasmin demo
 import time
 import rclpy
 from rclpy.node import Node
@@ -10,26 +10,37 @@ from yasmin import Blackboard
 from yasmin import StateMachine
 from yasmin_viewer import YasminViewerPub
 
+# Imports for action client demo
+from custom_action_interfaces.action import Simpleaction
+from yasmin import CbState
+from yasmin_ros import ActionState
+from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
+
 
 # define state Foo
 class FooState(State):
     def __init__(self, node) -> None:
-        super().__init__(["outcome1", "outcome2"])
+        super().__init__(["outcome1", "outcome2", "do_Action"])
         self.node = node
         self.counter = 0
 
     def execute(self, blackboard: Blackboard) -> str:
-        print("Executing state FOO")
+        self.node.get_logger().info("Executing state FOO")
+        event = self.node.wait_for_event()
+
         time.sleep(3)
 
-        if self.counter < 3:
-            self.counter += 1
-            blackboard["foo_str"] = f"Counter: {self.counter}"
+        if event['event'] == 'outcome1':
+            blackboard["event"] = f"outcome1"
             return "outcome1"
-        else:
+        elif event['event'] == "do_action":
+            blackboard["event"] = f"do_action"
+            blackboard["action_goal"] = event["value"]
+            return "do_Action"
+        elif event['event'] == 'outcome2':
+            # blackboard["event"] = f"outcome2"
             return "outcome2"
 
-    # TODO: externally trigger the state transition to Bar
 
 # define state Bar
 class BarState(State):
@@ -38,17 +49,60 @@ class BarState(State):
         self.node = node
 
     def execute(self, blackboard: Blackboard) -> str:
-        print("Executing state BAR")
+        self.node.get_logger().info("Executing state BAR")
+        event = self.node.wait_for_event()
+
         time.sleep(3)
 
-        print(blackboard["foo_str"])
-        return "outcome3"
+        if event['event'] == 'outcome3':
+            blackboard["event"] = f"outcome3"
+            return "outcome3"
+        elif event['event'] == 'outcome2':
+            # blackboard["event"] = f"outcome2"
+            return "outcome2"
+
+
+# define state SimpleAction
+class SimpleActionState(ActionState):
+    def __init__(self, node) -> None:
+        super().__init__(
+            Simpleaction,  # action type
+            "/simple_action",  # action name
+            self.create_goal_handler,  # cb to create the goal
+            None,  # outcomes. Includes (SUCCEED, ABORT, CANCEL)
+            self.response_handler,  # cb to process the response
+            self.print_feedback  # cb to process the feedback
+        )
+        self.node = node
+
+    def create_goal_handler(self, blackboard: Blackboard) -> Simpleaction.Goal:
+        goal = Simpleaction.Goal()
+        goal.simple_request = int(blackboard["action_goal"])
+        self.node.get_logger().info("Executing action SIMPLEACTION with goal: {goal.simple_request}")
+        return goal
+
+    def response_handler(
+        self,
+        blackboard: Blackboard,
+        response: Simpleaction.Result
+    ) -> str:
+
+        blackboard["action_result"] = response.simple_result
+        self.node.get_logger().info(f"Action completed with result: {blackboard["action_result"]}")
+        return SUCCEED
+
+    def print_feedback(
+        self,
+        blackboard: Blackboard,
+        feedback: Simpleaction.Feedback
+    ) -> None:
+        print(f"Received feedback: {list(feedback.simple_feedback)}")
 
 
 # define StateMachineNode
 class StateMachineNode(Node):
     def __init__(self):
-        super().__init__('ros_state_machine')
+        super().__init__('yasmin_test_sm')
         self.event_sub = self.create_subscription(
             String,
             'ros_sm/event',
@@ -87,6 +141,7 @@ def main():
 
     # create a FSM
     sm = StateMachine(outcomes=["outcome4"])
+    print(f"sm final outcome is: outcome4")
 
     # add states
     sm.add_state(
@@ -94,7 +149,17 @@ def main():
         FooState(node),
         transitions={
             "outcome1": "BAR",
-            "outcome2": "outcome4"
+            "outcome2": "outcome4",
+            "do_Action": "DOING_ACTION"
+        }
+    )
+    sm.add_state(
+        "DOING_ACTION",
+        SimpleActionState(node),
+        transitions={
+            SUCCEED: "BAR",
+            CANCEL: "outcome4",
+            ABORT: "FOO"
         }
     )
     sm.add_state(
@@ -106,12 +171,15 @@ def main():
     )
 
     # pub FSM info
-    YasminViewerPub("yasmin_demo", sm)
+    YasminViewerPub("yasmin_test", sm)
+
+    # create an initial blackboard
+    blackboard = Blackboard()
 
     try:
         # execute FSM
-        outcome = sm()
-        print(outcome)
+        outcome = sm(blackboard)
+        print(f"Reached final outcome: {outcome}")
     except Exception as e:
         print(e)
 
