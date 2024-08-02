@@ -10,11 +10,13 @@ from yasmin import Blackboard
 from yasmin import StateMachine
 from yasmin_viewer import YasminViewerPub
 
-# Imports for action client demo
+# Imports for action &service client demo
 from custom_action_interfaces.action import Simpleaction
+# TODO: import Service definition
 from yasmin import CbState
-from yasmin_ros import ActionState
+from yasmin_ros import ActionState, ServiceState
 from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
+
 
 
 # define state Foo
@@ -97,6 +99,48 @@ class SimpleActionState(ActionState):
         feedback: Simpleaction.Feedback
     ) -> None:
         print(f"Received feedback: {list(feedback.simple_feedback)}")
+
+
+# define state SimpleService
+# TODO: define SimpleServiceState(ServiceState):
+class SimpleServiceState(ServiceState):
+    def __init__(self, node) -> None:
+        super().__init__(
+            AddTwoInts,  # srv type
+            "/add_two_ints",  # service name
+            self.create_request_handler,  # cb to create the request
+            ["outcome1"],  # outcomes. Includes (SUCCEED, ABORT)
+            self.response_handler  # cb to process the response
+        )
+        self.node = node
+
+    def create_request_handler(self, blackboard: Blackboard) -> AddTwoInts.Request:
+
+        req = AddTwoInts.Request()
+        req.a = blackboard["a"]
+        req.b = blackboard["b"]
+        return req
+
+    def response_handler(
+        self,
+        blackboard: Blackboard,
+        response: AddTwoInts.Response
+    ) -> str:
+
+        blackboard["sum"] = response.sum
+        return "outcome1"
+
+
+def set_ints(blackboard: Blackboard) -> str:
+    blackboard["a"] = 10
+    blackboard["b"] = 5
+    return SUCCEED
+
+
+def print_sum(blackboard: Blackboard) -> str:
+    print(f"Sum: {blackboard['sum']}")
+    return SUCCEED
+
 
 
 # define StateMachineNode

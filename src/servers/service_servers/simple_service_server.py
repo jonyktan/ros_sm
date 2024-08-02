@@ -6,6 +6,8 @@ from rclpy.node import Node
 
 from custom_action_interfaces.action import Simpleaction
 
+# TODO: reference ROS 2 services tutorials to create service server
+
 class SimpleActionServer(Node):
 
     def __init__(self):
