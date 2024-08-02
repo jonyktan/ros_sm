@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'action_servers'
+package_name = 'servers'
 
 setup(
     name=package_name,
@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'simple_action_server = action_servers.simple_action_server:main'
+            'simple_action_server = action_servers.simple_action_server:main',
+            'simple_service_server = service_servers.simple_service_server:main'
         ],
     },
 )
