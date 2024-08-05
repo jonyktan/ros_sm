@@ -1,5 +1,6 @@
 # ros_sm
- Toy state machine in ROS
+ Toy state machine in ROS, using [YASMIN](https://github.com/uleroboticsgroup/yasmin) package.
+
 
 ## Docker
 
@@ -32,34 +33,83 @@
     . install/local_setup.bash
     ```
 
-## Simple Action
 
-1. In one terminal, run the server.
+## System Overview
 
-    ```
-    ros2 run action_servers simple_action_server
-    ```
+### ROS 2 Nodes
 
-1. In another terminal, send request to action server.
+1. Main state machine node (`'ros_sm_node'`). 
 
-    ```
-    ros2 action send_goal simple_action custom_action_interfaces/action/Simpleaction "{simple_request: 3}"
-    ```
+1. Command line input to trigger state machine transitions (`'cmdline_publisher'`). 
 
-    - Add `--feedback` to display feedback messages.
+    - Accepts inputs in 2 parts: `'command'` (required) and `'goal value'` (optional).
 
-## Command Line Publisher
+    - List of accepted `'command'` (depends on current state):
 
-To send instructions to the ROS state machine via CLI. 
+        1. `'do_action'`. Requires a positive integer for `'goal value'`.
 
-1. In one terminal, run the state machine.
+        1. `'call_service'`. Requires a list of positive integers for `'goal value'` (e.g. '1,2,3').
 
-    ```
+        1. `'re_init'`
+
+        1. `'failed'`. Transits back to current state. 
+
+        1. `'end'`
+
+1. Action server (`'simple_action_node'`). Required for `'do_action'`.
+
+1. Service (`'simple_service_node'`). Required for `'call_service'`. 
+
+1. [OPTIONAL] State machine viewer (`'yasmin_viewer_node'`). Displays state machine in browser. 
+
+
+### State Machine
+
+| State | Transition | Outcome |
+| :---: | :---: | :---: |
+| `INIT` | `'do_action'` | `DOING_ACTION` |
+| `INIT` | `'call_service'` | `CALLING_SERVICE` |
+| `DOING_ACTION` | Action complete | `STANDBY` |
+| `DOING_ACTION` | Action aborted | `STANDBY` |
+| `CALLING_SERVICE` | Service complete | `STANDBY` |
+| `CALLING_SERVICE` | Service aborted | `STANDBY` |
+| `STANDBY` | `'do_action'` | `DOING_ACTION` |
+| `STANDBY` | `'call_service'` | `CALLING_SERVICE` |
+| `STANDBY` | `'re_init'` | `INIT` |
+| `STANDBY` | `'end'` | `END` |
+
+
+## Start Up
+
+In any order, launch the ROS 2 nodes by running the corresponding ROS 2 executables. 
+
+-   ```
     ros2 run ros_sm ros_sm
     ```
 
-1. In another terminal, run the command line publisher.
-
-    ```
+-   ```
     ros2 run cmdline_publisher cmdline_publisher
     ```
+
+-   ```
+    ros2 run servers simple_action_server
+    ```
+
+-   ```
+    ros2 run servers simple_service_server
+    ```
+
+-   ```
+    ros2 run yasmin_viewer yasmin_viewer_node
+    ```
+
+
+## Test Action Server
+
+1. With the action server running in one terminal, use another terminal to send request to action server.
+
+    ```
+    ros2 action send_goal simple_action_name custom_interfaces/action/Simpleactiontype "{simple_request: 3}"
+    ```
+
+    - Add `--feedback` to display feedback messages.
