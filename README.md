@@ -113,3 +113,8 @@ In any order, launch the ROS 2 nodes by running the corresponding ROS 2 executab
     ```
 
     - Add `--feedback` to display feedback messages.
+
+
+## TODO
+
+- [ ] Allow transition back to last state. E.g. if action/service aborted/failed. 
