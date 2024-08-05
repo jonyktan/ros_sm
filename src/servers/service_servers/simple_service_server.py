@@ -1,54 +1,41 @@
 import time
 
 import rclpy
-from rclpy.action import ActionServer
 from rclpy.node import Node
 
-from custom_action_interfaces.action import Simpleaction
+from custom_interfaces.srv import Simpleservice
 
 # TODO: reference ROS 2 services tutorials to create service server
 
-class SimpleActionServer(Node):
+class SimpleService(Node):
 
     def __init__(self):
-        super().__init__('simple_action_server')
-        self._action_server = ActionServer(
-            self,
-            Simpleaction,
-            'simple_action',
-            self.execute_callback)
+        super().__init__('simple_service')
+        self.srv = self.create_service(
+            Simpleservice,
+            'simple_service',
+            self.service_callback)
 
-    # From sample Fibonacci action server
-    def execute_callback(self, goal_handle):
-        self.get_logger().info(f'Request received: {goal_handle.request.simple_request}. Executing...')
+    # From sample add three ints service server
+    def service_callback(self, request, response):
+        self.get_logger().info('Incoming request\na: %d b: %d c: %d' % (request.a, request.b, request.c))
 
-        feedback_msg = Simpleaction.Feedback()
-        feedback_msg.simple_feedback = [0, 1]
+        response.sum = request.a + request.b + request.c
 
-        for i in range(1, goal_handle.request.simple_request):
-            feedback_msg.simple_feedback.append(
-                feedback_msg.simple_feedback[i] + feedback_msg.simple_feedback[i-1])
-            self.get_logger().info(f'Feedback: {feedback_msg.simple_feedback}')
-            goal_handle.publish_feedback(feedback_msg)
-            time.sleep(1)
-
-        goal_handle.succeed()
-
-        result = Simpleaction.Result()
-        result.simple_result = feedback_msg.simple_feedback
-        return result
+        return response
 
 
 def main(args=None):
     rclpy.init(args=args)
 
-    simple_action_server = SimpleActionServer()
+    simple_service = SimpleService()
 
     try:
-        rclpy.spin(simple_action_server)
+        rclpy.spin(simple_service)
     except KeyboardInterrupt:
         pass
 
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

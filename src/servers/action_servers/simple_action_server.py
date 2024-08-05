@@ -4,7 +4,7 @@ import rclpy
 from rclpy.action import ActionServer
 from rclpy.node import Node
 
-from custom_action_interfaces.action import Simpleaction
+from custom_interfaces.action import Simpleaction
 
 class SimpleActionServer(Node):
 

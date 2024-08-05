@@ -1,0 +1,5 @@
+int64 a # Request(s) (to be sent from service client to service server)
+int64 b
+int64 c
+---
+int64 sum # Response (to be sent from service server to service client)
