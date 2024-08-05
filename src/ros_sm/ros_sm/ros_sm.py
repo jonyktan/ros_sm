@@ -2,29 +2,206 @@
 
 import time
 import rclpy
-from yasmin import State, StateMachine, CbState
-from yasmin import Blackboard
-from yasmin_viewer import YasminViewerPub
-from yasmin_ros import ActionState, MonitorState, ServiceState
-from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL, TIMEOUT
+from rclpy.node import Node
 
-
+# Import std msg String for publishing to ros_sm/event topic to trigger state transitions
 from std_msgs.msg import String
-from custom_action_interfaces.action import Simpleaction
-from example_interfaces.srv import AddTwoInts
+
+# yasmin imports to setup state machine
+from yasmin import State
+from yasmin import Blackboard
+from yasmin import StateMachine
+from yasmin_viewer import YasminViewerPub
+from yasmin import CbState
+from yasmin_ros import ActionState, ServiceState
+from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
+
+# custom interace imports for actions & services
+from custom_interfaces.action import Simpleactiontype
+from custom_interfaces.srv import Simpleservicetype
 
 
-# Define state Init
+
+# define state Init
 class InitState(State):
-    def __init__(self) -> None:
-        super().__init__(["do_action", "call_service", "failed"])
-        self.counter = 0
+    def __init__(self, node) -> None:
+        super().__init__(["do_Action", "call_Service", "failed"])
+        self.node = node
+
+    def execute(self, blackboard: Blackboard) -> str:
+        self.node.get_logger().info("Executing state INIT")
+        event = self.node.wait_for_event()
+
+        time.sleep(3)
+
+        if event['event'] == "do_action":
+            blackboard["event"] = f"do_action"
+            try:
+            # Ensure that action goal matches request definition in .action file (integer)
+                blackboard["action_goal"] = int(float(event["value"]))
+                self.node.get_logger().info(f"Action goal'] is: {blackboard["action_goal"]}")                
+                return "do_Action"
+            except TypeError as e:
+                print(e)
+        elif event['event'] == 'call_service':
+            blackboard["event"] = f"call_service"
+            # Ensure that service request matches definition in .srv file (3 integers)
+            try:
+                request = event["value"].split(',')
+                if len(request) == 3:
+                    blackboard["service_request"] = [int(request[0]),
+                                                     int(request[1]),
+                                                     int(request[2])]
+                    self.node.get_logger().info(f"Service request'] is: {blackboard["service_request"]}")
+                    return "call_Service"
+                else:
+                    raise Exception("Wrong service request format")
+            except Exception as e:
+                print(e)
+        else:
+            self.node.get_logger().info(f"Unrecognized outcome, state transition failed")
+            return "failed"
+
+
+# define state DoingAction
+class DoingActionState(ActionState):
+    def __init__(self, node) -> None:
+        super().__init__(
+            action_type=Simpleactiontype,  # action type
+            action_name="/simple_action_name",  # action name
+            create_goal_handler=self.create_goal_handler,  # cb to create the goal
+            outcomes=None,  # outcomes. Includes (SUCCEED, ABORT, CANCEL)
+            result_handler=self.response_handler,  # cb to process the response
+            feedback_handler=self.print_feedback  # cb to process the feedback
+        )
+        self.node = node
+
+    def create_goal_handler(self, blackboard: Blackboard) -> Simpleactiontype.Goal:
+        goal = Simpleactiontype.Goal()
+        goal.simple_request = int(blackboard["action_goal"])
+        self.node.get_logger().info("Executing SIMPLEACTION with goal: {goal.simple_request}")
+        return goal
+
+    def response_handler(
+        self,
+        blackboard: Blackboard,
+        response: Simpleactiontype.Result
+    ) -> str:
+
+        blackboard["action_result"] = response.simple_result
+        self.node.get_logger().info(f"Action completed with result: {blackboard["action_result"]}")
+        return SUCCEED
+
+    def print_feedback(
+        self,
+        blackboard: Blackboard,
+        feedback: Simpleactiontype.Feedback
+    ) -> None:
+        print(f"Received feedback: {list(feedback.simple_feedback)}")
+
+
+# define state RunningService
+class RunningServiceState(ServiceState):
+    def __init__(self, node) -> None:
+        super().__init__(
+            srv_type=Simpleservicetype,  # srv type
+            srv_name="/simple_service_name",  # service name
+            create_request_handler=self.create_request_handler,  # cb to create the request
+            outcomes=None,  # outcomes. Includes (SUCCEED, ABORT)
+            response_handler=self.response_handler  # cb to process the response
+        )
+        self.node = node
+
+    def create_request_handler(self, blackboard: Blackboard) -> Simpleservicetype.Request:
+
+        req = Simpleservicetype.Request()
+        self.node.get_logger().info(f"Service request received: {req}")
+        try:
+            service_request = blackboard["service_request"]
+            req.a = int(service_request[0])
+            req.b = int(service_request[1])
+            req.c = int(service_request[2])
+            self.node.get_logger().info(f"Calling SIMPLESERVICE with request: {req}")
+        except Exception as e:
+            print(f'{e}')
+            return ABORT
+        return req
+
+    def response_handler(
+        self,
+        blackboard: Blackboard,
+        response: Simpleservicetype.Response
+    ) -> str:
+
+        blackboard["service_result"] = response.sum
+        self.node.get_logger().info(f"Service completed with result: {blackboard["service_result"]}")
+        return SUCCEED
+
+
+# define state Standby
+class StandbyState(State):
+    def __init__(self, node) -> None:
+        super().__init__(["do_Action", "call_Service", "re_Init", "failed", "end"])
+        self.node = node
+
+    def execute(self, blackboard: Blackboard) -> str:
+        self.node.get_logger().info("Executing state STANDBY")
+        event = self.node.wait_for_event()
+
+        time.sleep(3)
+
+        if event['event'] == "do_action":
+            blackboard["event"] = f"do_action"
+            try:
+            # Ensure that action goal matches request definition in .action file (integer)
+                blackboard["action_goal"] = int(float(event["value"]))
+                self.node.get_logger().info(f"Action goal'] is: {blackboard["action_goal"]}")
+                return "do_Action"
+            except TypeError as e:
+                print(e)
+        elif event['event'] == 'call_service':
+            blackboard["event"] = f"call_service"
+            # Ensure that service request matches definition in .srv file (3 integers)
+            try:
+                request = event["value"].split(',')
+                if len(request) == 3:
+                    blackboard["service_request"] = [int(request[0]),
+                                                     int(request[1]),
+                                                     int(request[2])]
+                    self.node.get_logger().info(f"Service request'] is: {blackboard["service_request"]}")
+                    return "call_Service"
+                else:
+                    raise Exception("Wrong service request format")
+            except Exception as e:
+                print(e)
+        elif event['event'] == 're_init':
+            self.node.get_logger().info(f"Re-enter state INIT")
+            return "re_Init"
+        elif event['event'] == "end":
+            self.node.get_logger().info(f"End State Machine")
+            return "end"
+        else:
+            self.node.get_logger().info(f"Unrecognized outcome, state transition failed")
+            return "failed"
+
+
+# define StateMachineNode
+class StateMachineNode(Node):
+    def __init__(self):
+        super().__init__('ros_sm_node')
+        self.event_sub = self.create_subscription(
+            String,
+            'ros_sm/event',
+            self.event_callback,
+            10
+        )
+        self.current_event = {'event':None, 'value':None}
 
     def event_callback(self, msg):
         try:
             parts = msg.data.split()
             self.current_event['event'] = parts[0]
-            self.current_event['value'] = float(parts[1]) if len(parts) > 1 else None
+            self.current_event['value'] = parts[1] if len(parts) > 1 else None
         except (IndexError, ValueError):
             self.get_logger().error(f'Invalid event message format: {msg.data}')
             self.current_event = {'event':None, 'value':None}
@@ -37,236 +214,79 @@ class InitState(State):
         self.current_event = {'event':None, 'value':None}
         return event
 
-    def execute(self, blackboard: Blackboard) -> str:
-        print("Executing state INIT")
-        time.sleep(3)
-
-        if self.counter < 3:
-            self.counter += 1
-            blackboard["foo_str"] = f"Counter: {self.counter}"
-            return "outcome1"
-        else:
-            return "outcome2"
-# class InitState(smach.State):
-#     def __init__(self, node):
-#         smach.State.__init__(self, outcomes=['do_action', 'call_service', 'failed'], output_keys=['action_goal'])
-#         self.node = node
-
-#     def execute(self, userdata):
-#         self.node.get_logger().info('Executing state InitState')
-#         event = self.node.wait_for_event()
-#         if event['event'] == 'do_action':
-#             userdata.action_goal = event['value']
-#             return 'do_action'
-#         elif event['event'] == 'call_service':
-#             return 'call_service'
-#         elif event['event'] == 'failed':
-#             return 'failed'
-
-# Define state DoingAction
-class DoingActionState(ActionState):
-    def __init__(self) -> None:
-        super().__init__(
-            action_type=Simpleaction,
-            action_name='/simple_action',
-            create_goal_handler=self.create_goal_handler,
-            outcomes=['action_complete', 'failed'],
-            result_handler=self.response_handler,
-            feedback_handler=self.print_feedback
-            )
-
-    def create_goal_handler(self, blackboard: Blackboard) -> Simpleaction.Goal:
-
-        goal = Simpleaction.Goal()
-        goal.order = blackboard["n"]
-        return goal    
-
-    def response_handler(
-        self,
-        blackboard: Blackboard,
-        response: Simpleaction.Result
-    ) -> str:
-
-        blackboard["simpleaction_result"] = response.simple_result
-        self.print_result()
-
-    def print_feedback(
-        self,
-        blackboard: Blackboard,
-        feedback: Simpleaction.Feedback
-    ) -> None:
-        print(f"Received feedback: {list(feedback.simple_feedback)}")    
-
-    def print_result(blackboard: Blackboard) -> str:
-        print(f"Result: {blackboard['simpleaction_result']}")
-        return SUCCEED
-
-# Define state RunningService
-class RunningServiceState(ServiceState):
-    def __init__(self) -> None:
-        super().__init__(
-            srv_type=AddTwoInts,
-            srv_name="/simple_service",
-            create_request_handler=self.create_request_handler,
-            outcomes=["service_ended", "failed"],
-            response_handler=self.response_handler
-        )
-
-    def create_request_handler(self, blackboard: Blackboard) -> AddTwoInts.Request:
-
-        req = AddTwoInts.Request()
-        req.a = blackboard["a"]
-        req.b = blackboard["b"]
-        return req
-
-    def response_handler(
-        self,
-        blackboard: Blackboard,
-        response: AddTwoInts.Response
-    ) -> str:
-
-        blackboard["sum"] = response.sum
-        return SUCCEED
-    
-# class RunningServiceState(smach_ros.ServiceState):
-#     def __init__(self, node):
-#         smach_ros.ServiceState.__init__(self, outcomes=['service_ended', 'failed'])
-#         self.node = node
-
-#     def execute(self, userdata):
-#         self.node.get_logger().info('Executing state RunningServiceState')
-#         event, _ = self.node.wait_for_event()
-#         if event == 'service_ended':
-#             return 'service_ended'
-#         elif event == 'failed':
-#             return 'failed'
-
-# # Define state Standby
-# class StandbyState(smach.State):
-#     def __init__(self, node):
-#         smach.State.__init__(self, outcomes=['do_action', 'call_service', 're_init', 'failed'])
-#         self.node = node
-
-#     def execute(self, userdata):
-#         self.node.get_logger().info('Executing state Standby')
-#         event = self.node.wait_for_event()
-#         if event['event'] == 'do_action':
-#             return 'do_action'
-#         elif event == 'call_service':
-#             return 'call_service'
-#         elif event == 're_init':
-#             return 're_init'
-#         elif event == 'failed':
-#             return 'failed'
-
-# class StateMachineNode(Node):
-#     def __init__(self):
-#         super().__init__('ros_state_machine')
-#         self.event_sub = self.create_subscription(
-#             String,
-#             'ros_sm/event',
-#             self.event_callback,
-#             10
-#         )
-#         self.current_event = {'event':None, 'value':None}
-
-#     def event_callback(self, msg):
-#         try:
-#             parts = msg.data.split()
-#             self.current_event['event'] = parts[0]
-#             self.current_event['value'] = float(parts[1]) if len(parts) > 1 else None
-#         except (IndexError, ValueError):
-#             self.get_logger().error(f'Invalid event message format: {msg.data}')
-#             self.current_event = {'event':None, 'value':None}
-
-#     def wait_for_event(self):
-#         print('waiting for event')
-#         while rclpy.ok() and self.current_event == {'event':None, 'value':None}:
-#             rclpy.spin_once(self)
-#         event = self.current_event
-#         self.current_event = {'event':None, 'value':None}
-#         return event
 
 # main
-def main(args=None):
-    rclpy.init(args=args)
+def main():
 
-    # Create a FSM
-    sm = StateMachine(outcomes=['FAILED'])
+    print("ros_sm node running")
 
-    # Add states
+    # init ROS 2
+    rclpy.init()
+
+    node = StateMachineNode()
+
+    # create a FSM
+    sm = StateMachine(outcomes=["END"])
+    print(f"sm final outcome is: END")
+
+    # add states
     sm.add_state(
         "INIT",
-        InitState(),
+        InitState(node),
         transitions={
-            "do_action":"ACTION",
-            "call_service":"SERVICE",
-            "standby":"STANDBY",
-            "failed":"FAILED"
+            "do_Action": "DOING_ACTION",
+            "call_Service": "CALLING_SERVICE",
+            "failed": "INIT"
         }
     )
     sm.add_state(
-        "ACTION",
-        DoingActionState(),
+        "DOING_ACTION",
+        DoingActionState(node),
         transitions={
-            SUCCEED:"STANDBY",
-            CANCEL:"ACTION",
-            ABORT:"FAILED"
+            SUCCEED: "STANDBY",
+            CANCEL: "END",
+            ABORT: "STANDBY", # TODO: return to previous state
         }
     )
     sm.add_state(
-        "SERVICE",
-        RunningServiceState(),
+        "CALLING_SERVICE",
+        RunningServiceState(node),
         transitions={
-            SUCCEED:"STANDBY",
-            ABORT:"FAILED"
+            SUCCEED: "STANDBY",
+            ABORT: "STANDBY" # TODO: return to previous state
         }
     )
     sm.add_state(
         "STANDBY",
-        StandbyState(),
+        StandbyState(node),
         transitions={
-            "do_action":"ACTION",
-            "call_service":"SERVICE",
-            "re_init":"INIT",
-            "failed":"FAILED"
+            "do_Action": "DOING_ACTION",
+            "call_Service": "CALLING_SERVICE",
+            "re_Init": "INIT",
+            "failed": "STANDBY",
+            "end": "END"
         }
     )
 
-    # Pub FSM info
+    # pub FSM info
     YasminViewerPub("ROS_SM using YASMIN", sm)
 
-    # Create an initial blackboard
+    # create an initial blackboard
     blackboard = Blackboard()
-    blackboard["n"] = 10
 
     try:
-        # Execute FSFM
+        # execute FSM
         outcome = sm(blackboard)
-        print(outcome)
+        print(f"Reached final outcome: {outcome}")
     except Exception as e:
         print(e)
 
-    # Shutdown ROS 2
+    rclpy.spin(node)
+
+    # shutdown ROS 2
+    node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
-
-
-#     # Create and start the introspection server
-#     sis = smach_ros.IntrospectionServer('ros_sm', sm, '/ROS_SM')
-#     sis.start()
-
-#     try:
-#         # Execute SMACH plan
-#         outcome = sm.execute()
-#     except Exception as e:
-#         print(e)
-
-#     # Wait for ctrl-c to stop the application
-#     rclpy.spin(node)
-#     sis.stop()
-
-#     node.destroy_node()
-#     rclpy.shutdown()
