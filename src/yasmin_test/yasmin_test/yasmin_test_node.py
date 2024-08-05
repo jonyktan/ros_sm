@@ -11,8 +11,8 @@ from yasmin import StateMachine
 from yasmin_viewer import YasminViewerPub
 
 # Imports for action &service client demo
-from custom_action_interfaces.action import Simpleaction
-# TODO: import Service definition
+from custom_interfaces.action import Simpleaction
+from custom_interfaces.srv import Simpleservice
 from yasmin import CbState
 from yasmin_ros import ActionState, ServiceState
 from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
@@ -22,7 +22,7 @@ from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
 # define state Foo
 class FooState(State):
     def __init__(self, node) -> None:
-        super().__init__(["outcome1", "outcome2", "do_Action"])
+        super().__init__(["outcome1", "outcome2", "do_Action", "call_Service", "failed"])
         self.node = node
         self.counter = 0
 
@@ -37,17 +37,39 @@ class FooState(State):
             return "outcome1"
         elif event['event'] == "do_action":
             blackboard["event"] = f"do_action"
-            blackboard["action_goal"] = event["value"]
-            return "do_Action"
+            try:
+            # Ensure that action goal matches request definition in .action file (integer)
+                blackboard["action_goal"] = int(float(event["value"]))
+                return "do_Action"
+            except TypeError as e:
+                print(e)
+        elif event['event'] == 'call_service':
+            blackboard["event"] = f"call_service"
+            # Ensure that service request matches definition in .srv file (3 integers)
+            try:
+                request = event["value"].split(',')
+                if len(request) == 3:
+                    blackboard["service_request"] = [int(request[0]),
+                                                     int(request[1]),
+                                                     int(request[2])]
+                    print(f"blackboard['service_request'] is: {blackboard["service_request"]}")
+                    return "call_Service"
+                else:
+                    raise Exception("Wrong service request format")
+            except Exception as e:
+                print(e)
         elif event['event'] == 'outcome2':
             # blackboard["event"] = f"outcome2"
             return "outcome2"
+        else:
+            self.node.get_logger().info(f"Unrecognized outcome, state transition failed")
+            return "failed"
 
 
 # define state Bar
 class BarState(State):
     def __init__(self, node) -> None:
-        super().__init__(outcomes=["outcome3"])
+        super().__init__(outcomes=["outcome3", "failed"])
         self.node = node
 
     def execute(self, blackboard: Blackboard) -> str:
@@ -62,6 +84,8 @@ class BarState(State):
         elif event['event'] == 'outcome2':
             # blackboard["event"] = f"outcome2"
             return "outcome2"
+        else:
+            self.node.get_logger().info(f"Unrecognized outcome, state transition failed")        
 
 
 # define state SimpleAction
@@ -102,45 +126,42 @@ class SimpleActionState(ActionState):
 
 
 # define state SimpleService
-# TODO: define SimpleServiceState(ServiceState):
 class SimpleServiceState(ServiceState):
     def __init__(self, node) -> None:
         super().__init__(
-            AddTwoInts,  # srv type
-            "/add_two_ints",  # service name
-            self.create_request_handler,  # cb to create the request
-            ["outcome1"],  # outcomes. Includes (SUCCEED, ABORT)
-            self.response_handler  # cb to process the response
+            srv_type=Simpleservice,  # srv type
+            srv_name="/simple_service",  # service name
+            create_request_handler=self.create_request_handler,  # cb to create the request
+            outcomes=None,  # outcomes. Includes (SUCCEED, ABORT)
+            response_handler=self.response_handler  # cb to process the response
         )
         self.node = node
 
-    def create_request_handler(self, blackboard: Blackboard) -> AddTwoInts.Request:
+    def create_request_handler(self, blackboard: Blackboard) -> Simpleservice.Request:
 
-        req = AddTwoInts.Request()
-        req.a = blackboard["a"]
-        req.b = blackboard["b"]
+        print(f"create_request_handler called")
+        req = Simpleservice.Request()
+        self.node.get_logger().info(f"Service request received: {req}")
+        try:
+            service_request = blackboard["service_request"]
+            req.a = int(service_request[0])
+            req.b = int(service_request[1])
+            req.c = int(service_request[2])
+            self.node.get_logger().info(f"Calling service SIMPLESERVICE with request: {req}")
+        except Exception as e:
+            print(f'{e}')
+            return ABORT
         return req
 
     def response_handler(
         self,
         blackboard: Blackboard,
-        response: AddTwoInts.Response
+        response: Simpleservice.Response
     ) -> str:
 
-        blackboard["sum"] = response.sum
-        return "outcome1"
-
-
-def set_ints(blackboard: Blackboard) -> str:
-    blackboard["a"] = 10
-    blackboard["b"] = 5
-    return SUCCEED
-
-
-def print_sum(blackboard: Blackboard) -> str:
-    print(f"Sum: {blackboard['sum']}")
-    return SUCCEED
-
+        blackboard["service_result"] = response.sum
+        self.node.get_logger().info(f"Service completed with result: {blackboard["service_result"]}")
+        return SUCCEED
 
 
 # define StateMachineNode
@@ -159,7 +180,7 @@ class StateMachineNode(Node):
         try:
             parts = msg.data.split()
             self.current_event['event'] = parts[0]
-            self.current_event['value'] = float(parts[1]) if len(parts) > 1 else None
+            self.current_event['value'] = parts[1] if len(parts) > 1 else None
         except (IndexError, ValueError):
             self.get_logger().error(f'Invalid event message format: {msg.data}')
             self.current_event = {'event':None, 'value':None}
@@ -194,7 +215,9 @@ def main():
         transitions={
             "outcome1": "BAR",
             "outcome2": "outcome4",
-            "do_Action": "DOING_ACTION"
+            "do_Action": "DOING_ACTION",
+            "call_Service": "CALLING_SERVICE",
+            "failed": "FOO"
         }
     )
     sm.add_state(
@@ -203,6 +226,14 @@ def main():
         transitions={
             SUCCEED: "BAR",
             CANCEL: "outcome4",
+            ABORT: "FOO",
+        }
+    )
+    sm.add_state(
+        "CALLING_SERVICE",
+        SimpleServiceState(node),
+        transitions={
+            SUCCEED: "BAR",
             ABORT: "FOO"
         }
     )
@@ -210,7 +241,8 @@ def main():
         "BAR",
         BarState(node),
         transitions={
-            "outcome3": "FOO"
+            "outcome3": "FOO",
+            "failed": "BAR"
         }
     )
 

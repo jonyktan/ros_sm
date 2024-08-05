@@ -5,12 +5,11 @@ from rclpy.node import Node
 
 from custom_interfaces.srv import Simpleservice
 
-# TODO: reference ROS 2 services tutorials to create service server
 
 class SimpleService(Node):
 
     def __init__(self):
-        super().__init__('simple_service')
+        super().__init__('simple_service_server')
         self.srv = self.create_service(
             Simpleservice,
             'simple_service',
