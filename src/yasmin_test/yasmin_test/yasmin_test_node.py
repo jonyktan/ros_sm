@@ -11,8 +11,8 @@ from yasmin import StateMachine
 from yasmin_viewer import YasminViewerPub
 
 # Imports for action &service client demo
-from custom_interfaces.action import Simpleaction
-from custom_interfaces.srv import Simpleservice
+from custom_interfaces.action import Simpleactiontype
+from custom_interfaces.srv import Simpleservicetype
 from yasmin import CbState
 from yasmin_ros import ActionState, ServiceState
 from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
@@ -86,14 +86,15 @@ class BarState(State):
             return "outcome2"
         else:
             self.node.get_logger().info(f"Unrecognized outcome, state transition failed")        
+            return "failed"
 
 
 # define state SimpleAction
 class SimpleActionState(ActionState):
     def __init__(self, node) -> None:
         super().__init__(
-            action_type=Simpleaction,  # action type
-            action_name="/simple_action",  # action name
+            action_type=Simpleactiontype,  # action type
+            action_name="/simple_action_name",  # action name
             create_goal_handler=self.create_goal_handler,  # cb to create the goal
             outcomes=None,  # outcomes. Includes (SUCCEED, ABORT, CANCEL)
             result_handler=self.response_handler,  # cb to process the response
@@ -101,8 +102,8 @@ class SimpleActionState(ActionState):
         )
         self.node = node
 
-    def create_goal_handler(self, blackboard: Blackboard) -> Simpleaction.Goal:
-        goal = Simpleaction.Goal()
+    def create_goal_handler(self, blackboard: Blackboard) -> Simpleactiontype.Goal:
+        goal = Simpleactiontype.Goal()
         goal.simple_request = int(blackboard["action_goal"])
         self.node.get_logger().info("Executing action SIMPLEACTION with goal: {goal.simple_request}")
         return goal
@@ -110,7 +111,7 @@ class SimpleActionState(ActionState):
     def response_handler(
         self,
         blackboard: Blackboard,
-        response: Simpleaction.Result
+        response: Simpleactiontype.Result
     ) -> str:
 
         blackboard["action_result"] = response.simple_result
@@ -120,7 +121,7 @@ class SimpleActionState(ActionState):
     def print_feedback(
         self,
         blackboard: Blackboard,
-        feedback: Simpleaction.Feedback
+        feedback: Simpleactiontype.Feedback
     ) -> None:
         print(f"Received feedback: {list(feedback.simple_feedback)}")
 
@@ -129,18 +130,18 @@ class SimpleActionState(ActionState):
 class SimpleServiceState(ServiceState):
     def __init__(self, node) -> None:
         super().__init__(
-            srv_type=Simpleservice,  # srv type
-            srv_name="/simple_service",  # service name
+            srv_type=Simpleservicetype,  # srv type
+            srv_name="/simple_service_name",  # service name
             create_request_handler=self.create_request_handler,  # cb to create the request
             outcomes=None,  # outcomes. Includes (SUCCEED, ABORT)
             response_handler=self.response_handler  # cb to process the response
         )
         self.node = node
 
-    def create_request_handler(self, blackboard: Blackboard) -> Simpleservice.Request:
+    def create_request_handler(self, blackboard: Blackboard) -> Simpleservicetype.Request:
 
         print(f"create_request_handler called")
-        req = Simpleservice.Request()
+        req = Simpleservicetype.Request()
         self.node.get_logger().info(f"Service request received: {req}")
         try:
             service_request = blackboard["service_request"]
@@ -156,7 +157,7 @@ class SimpleServiceState(ServiceState):
     def response_handler(
         self,
         blackboard: Blackboard,
-        response: Simpleservice.Response
+        response: Simpleservicetype.Response
     ) -> str:
 
         blackboard["service_result"] = response.sum
@@ -247,7 +248,7 @@ def main():
     )
 
     # pub FSM info
-    YasminViewerPub("yasmin_test", sm)
+    YasminViewerPub("yasmin_sm_node", sm)
 
     # create an initial blackboard
     blackboard = Blackboard()

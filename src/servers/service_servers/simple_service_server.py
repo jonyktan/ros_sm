@@ -3,16 +3,16 @@ import time
 import rclpy
 from rclpy.node import Node
 
-from custom_interfaces.srv import Simpleservice
+from custom_interfaces.srv import Simpleservicetype
 
 
 class SimpleService(Node):
 
     def __init__(self):
-        super().__init__('simple_service_server')
+        super().__init__('simple_service_node')
         self.srv = self.create_service(
-            Simpleservice,
-            'simple_service',
+            Simpleservicetype,
+            'simple_service_name',
             self.service_callback)
 
     # From sample add three ints service server
@@ -21,6 +21,7 @@ class SimpleService(Node):
 
         response.sum = request.a + request.b + request.c
 
+        self.get_logger().info(f'Request completed, returning: {response.sum}')
         return response
 
 
