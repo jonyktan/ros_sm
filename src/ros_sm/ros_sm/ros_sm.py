@@ -16,7 +16,7 @@ from yasmin import CbState
 from yasmin_ros import ActionState, ServiceState
 from yasmin_ros.basic_outcomes import SUCCEED, ABORT, CANCEL
 
-# custom interace imports for actions & services
+# custom interface imports for actions & services
 from custom_interfaces.action import Simpleactiontype
 from custom_interfaces.srv import Simpleservicetype
 
@@ -39,7 +39,7 @@ class InitState(State):
             try:
             # Ensure that action goal matches request definition in .action file (integer)
                 blackboard["action_goal"] = int(float(event["value"]))
-                self.node.get_logger().info(f"Action goal'] is: {blackboard["action_goal"]}")                
+                self.node.get_logger().info(f"Action goal is: {blackboard["action_goal"]}")                
                 return "do_Action"
             except TypeError as e:
                 print(e)
@@ -52,7 +52,7 @@ class InitState(State):
                     blackboard["service_request"] = [int(request[0]),
                                                      int(request[1]),
                                                      int(request[2])]
-                    self.node.get_logger().info(f"Service request'] is: {blackboard["service_request"]}")
+                    self.node.get_logger().info(f"Service request is: {blackboard["service_request"]}")
                     return "call_Service"
                 else:
                     raise Exception("Wrong service request format")
@@ -155,7 +155,7 @@ class StandbyState(State):
             try:
             # Ensure that action goal matches request definition in .action file (integer)
                 blackboard["action_goal"] = int(float(event["value"]))
-                self.node.get_logger().info(f"Action goal'] is: {blackboard["action_goal"]}")
+                self.node.get_logger().info(f"Action goal is: {blackboard["action_goal"]}")
                 return "do_Action"
             except TypeError as e:
                 print(e)
@@ -168,7 +168,7 @@ class StandbyState(State):
                     blackboard["service_request"] = [int(request[0]),
                                                      int(request[1]),
                                                      int(request[2])]
-                    self.node.get_logger().info(f"Service request'] is: {blackboard["service_request"]}")
+                    self.node.get_logger().info(f"Service request is: {blackboard["service_request"]}")
                     return "call_Service"
                 else:
                     raise Exception("Wrong service request format")
