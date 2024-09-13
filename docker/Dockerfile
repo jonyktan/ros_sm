@@ -7,7 +7,6 @@ SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/jazzy/setup.bash
 RUN apt update \
     && apt --no-install-recommends install -y \
-    ros-jazzy-smach ros-jazzy-smach-ros \
     python3 python3-pip \
     python3-colcon-common-extensions
 
