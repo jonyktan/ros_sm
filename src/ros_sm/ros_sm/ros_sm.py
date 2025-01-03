@@ -227,7 +227,7 @@ def main():
 
     # create a FSM
     sm = StateMachine(outcomes=["END"])
-    print(f"sm final outcome is: END")
+    node.get_logger().info(f"sm final outcome is: END")
 
     # add states
     sm.add_state(
@@ -277,7 +277,10 @@ def main():
     try:
         # execute FSM
         outcome = sm(blackboard)
-        print(f"Reached final outcome: {outcome}")
+        node.get_logger().info(f"Reached final outcome: {outcome}")
+    except KeyboardInterrupt:
+        if sm.is_running():
+            sm.cancel_state() # Cancel the state if interrupted #TODO: currently still kills the whole SM and does not seem to send cancel goal to action server
     except Exception as e:
         print(e)
 
