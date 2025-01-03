@@ -22,5 +22,9 @@ def generate_launch_description():
         Node(
             package = "ros_sm",
             executable = "ros_sm",
+            # name = "ros_sm_node",
+            output = "screen",
+            arguments = ["--ros-args", "--log-level", 
+                         ["ros_sm_node:=INFO"]]
         )
     ])
