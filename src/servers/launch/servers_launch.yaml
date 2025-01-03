@@ -1,0 +1,9 @@
+launch:
+
+- node:
+    pkg: "servers"
+    exec: "simple_action_server"
+
+- node:
+    pkg: "servers"
+    exec: "simple_service_server"
