@@ -13,15 +13,16 @@ RUN apt update \
 COPY ./../yasmin /root/ros2_ws/src
 RUN rosdep install --from-paths src --ignore-src -r -y
 
-WORKDIR /root/ros2_ws/src
-RUN pip3 install -r requirements.txt \
-# undesirable but necessary until a fix is found
-    --break-system-packages
+# WORKDIR /root/ros2_ws/src
+# RUN pip3 install -r requirements.txt \
+# # undesirable but necessary until a fix is found
+#     --break-system-packages
 
 WORKDIR /root/ros2_ws
 
 RUN source /opt/ros/jazzy/setup.bash \
-    && colcon build --packages-skip yasmin_demos
+    && colcon build
+    # && colcon build --packages-skip yasmin_demos
 
 RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 RUN echo "source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
